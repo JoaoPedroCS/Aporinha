@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wishlist da Vida</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        /* PALETA DE CORES SOUR */
+        :root {
+            --sour-bg: #d0bdf4;
+            --sour-pink: #ff5ebc;
+            --sour-dark: #2d1b3d;
+            --card-bg: #ffffff;
+            --border-color: #2d1b3d;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--sour-bg);
+            color: var(--sour-dark);
+            background-image: radial-gradient(var(--sour-pink) 1px, transparent 1px);
+            background-size: 20px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            width: 100%;
+            max-width: 500px;
+            padding: 2rem;
+            border-radius: 15px;
+            border: 3px solid var(--border-color);
+            box-shadow: 8px 8px 0px var(--sour-pink);
+            position: relative;
+        }
+
+        h1 {
+            font-family: 'Fredoka', sans-serif;
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--border-color);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .status {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 1.5rem;
+            min-height: 20px;
+        }
+
+        ol {
+            padding-left: 1.5rem;
+            margin-bottom: 2rem;
+            font-size: 1.2rem;
+        }
+
+        li {
+            margin-bottom: 1rem;
+            padding: 10px;
+            border-bottom: 2px dashed var(--sour-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            word-break: break-word;
+        }
+
+        .item-text { flex-grow: 1; margin-right: 10px; }
+
+        button {
+            font-family: 'Poppins', sans-serif;
+            font-weight: bold;
+            cursor: pointer;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px 16px;
+            transition: all 0.2s;
+        }
+
+        .btn-edit-mode {
+            display: block;
+            margin: 0 auto;
+            background-color: var(--sour-dark);
+            color: white;
+            box-shadow: 4px 4px 0px var(--sour-bg);
+        }
+
+        .btn-edit-mode:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px var(--sour-bg);
+        }
+
+        .admin-controls {
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: #f0f0f0;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid var(--border-color);
+        }
+
+        .admin-controls input {
+            padding: 10px;
+            border: 2px solid var(--border-color);
+            border-radius: 5px;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .btn-add { background-color: var(--sour-pink); color: white; }
+
+        .action-buttons { display: none; gap: 5px; }
+        .action-btn { padding: 4px 8px; font-size: 0.8rem; background: white; border: 1px solid var(--border-color); }
+        .action-btn:hover { background: var(--sour-pink); color: white; }
+
+        .show-flex { display: flex !important; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Wishlist 🦋</h1>
+        <div class="status" id="statusText">Carregando desejos das nuvens... ☁️</div>
+
+        <div class="admin-controls" id="adminControls">
+            <input type="text" id="newItemInput" placeholder="O que vamos adicionar?">
+            <button class="btn-add" onclick="addItem()">Adicionar Item</button>
+        </div>
+
+        <ol id="wishlist"></ol>
+
+        <button class="btn-edit-mode" onclick="toggleEditMode()" id="editToggleBtn" style="display: none;">Editar Lista ✏️</button>
+    </div>
+
+    <script>
+        // --- CONFIGURAÇÕES DO BANCO DE DADOS ---
+        // Você vai preencher essas duas variáveis com os dados do JSONBin.io
+        const API_KEY = "SUA_API_KEY_AQUI"; 
+        const BIN_ID = "SEU_BIN_ID_AQUI";
+        
+        const PASSWORD = "Eusoupora!";
+        let isEditMode = false;
+        let items = [];
+
+        const url = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-Master-Key': API_KEY
+        };
+
+        // Função para buscar dados da nuvem
+        async function fetchLista() {
+            try {
+                const response = await fetch(url + '/latest', { headers: headers });
+                const data = await response.json();
+                
+                // Verifica se a lista existe no banco, se não, cria vazia
+                items = data.record.itens || [];
+                
+                document.getElementById('statusText').textContent = "Lista carregada! 💜";
+                document.getElementById('editToggleBtn').style.display = "block";
+                renderList();
+            } catch (error) {
+                console.error("Erro ao carregar:", error);
+                document.getElementById('statusText').textContent = "Erro ao carregar a lista. 😢";
+            }
+        }
+
+        // Função para salvar dados na nuvem
+        async function salvarNaNuvem() {
+            document.getElementById('statusText').textContent = "Salvando nas nuvens... ⏳";
+            try {
+                await fetch(url, {
+                    method: 'PUT',
+                    headers: headers,
+                    body: JSON.stringify({ itens: items })
+                });
+                document.getElementById('statusText').textContent = "Salvo com sucesso! ✨";
+            } catch (error) {
+                console.error("Erro ao salvar:", error);
+                document.getElementById('statusText').textContent = "Erro ao salvar. Tente de novo.";
+            }
+        }
+
+        // Desenhar a lista na tela
+        function renderList() {
+            const listElement = document.getElementById('wishlist');
+            listElement.innerHTML = ''; 
+
+            items.forEach((item, index) => {
+                const li = document.createElement('li');
+                const spanText = document.createElement('span');
+                spanText.className = 'item-text';
+                spanText.textContent = item;
+
+                const actionDiv = document.createElement('div');
+                actionDiv.className = `action-buttons ${isEditMode ? 'show-flex' : ''}`;
+
+                const btnUp = document.createElement('button');
+                btnUp.className = 'action-btn'; btnUp.innerHTML = '↑';
+                btnUp.onclick = () => moveItem(index, -1);
+                if (index === 0) btnUp.disabled = true;
+
+                const btnDown = document.createElement('button');
+                btnDown.className = 'action-btn'; btnDown.innerHTML = '↓';
+                btnDown.onclick = () => moveItem(index, 1);
+                if (index === items.length - 1) btnDown.disabled = true;
+
+                const btnEdit = document.createElement('button');
+                btnEdit.className = 'action-btn'; btnEdit.innerHTML = '✎';
+                btnEdit.onclick = () => editItem(index);
+
+                const btnDel = document.createElement('button');
+                btnDel.className = 'action-btn'; btnDel.innerHTML = '✖';
+                btnDel.style.color = 'red';
+                btnDel.onclick = () => deleteItem(index);
+
+                actionDiv.append(btnUp, btnDown, btnEdit, btnDel);
+                li.append(spanText, actionDiv);
+                listElement.appendChild(li);
+            });
+        }
+
+        // Sistema de Senha
+        function toggleEditMode() {
+            if (!isEditMode) {
+                const senha = prompt("Digite a senha secreta para editar:");
+                if (senha === PASSWORD) {
+                    isEditMode = true;
+                    document.getElementById('adminControls').classList.add('show-flex');
+                    document.getElementById('editToggleBtn').textContent = "Sair da Edição 🔒";
+                    renderList();
+                } else if (senha !== null) {
+                    alert("Senha incorreta! Nice try. 😜");
+                }
+            } else {
+                isEditMode = false;
+                document.getElementById('adminControls').classList.remove('show-flex');
+                document.getElementById('editToggleBtn').textContent = "Editar Lista ✏️";
+                renderList();
+            }
+        }
+
+        // Ações da Lista (Adicionar, Deletar, Editar, Mover)
+        async function addItem() {
+            const input = document.getElementById('newItemInput');
+            const novoItem = input.value.trim();
+            if (novoItem) {
+                items.push(novoItem);
+                input.value = ''; 
+                renderList();
+                await salvarNaNuvem();
+            }
+        }
+
+        async function deleteItem(index) {
+            if (confirm(`Tem certeza que quer apagar "${items[index]}"?`)) {
+                items.splice(index, 1);
+                renderList();
+                await salvarNaNuvem();
+            }
+        }
+
+        async function editItem(index) {
+            const novoTexto = prompt("Altere o item:", items[index]);
+            if (novoTexto !== null && novoTexto.trim() !== "") {
+                items[index] = novoTexto.trim();
+                renderList();
+                await salvarNaNuvem();
+            }
+        }
+
+        async function moveItem(index, direction) {
+            const novoIndex = index + direction;
+            if (novoIndex >= 0 && novoIndex < items.length) {
+                const temp = items[index];
+                items[index] = items[novoIndex];
+                items[novoIndex] = temp;
+                renderList();
+                await salvarNaNuvem();
+            }
+        }
+
+        // Quando o site abre, ele puxa os dados das nuvens
+        fetchLista();
+    </script>
+</body>
+</html>
