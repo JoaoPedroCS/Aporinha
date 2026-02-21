@@ -61,10 +61,10 @@
         }
 
         ol {
-            padding-left: 0; /* Tiramos o padding já que o número vai via JS */
+            padding-left: 0; 
             margin-bottom: 2rem;
             font-size: 1.2rem;
-            list-style: none; /* Remove o marcador padrão do navegador */
+            list-style: none; 
         }
 
         li {
@@ -77,10 +77,36 @@
             word-break: break-word;
         }
 
-        .item-text { 
+        /* Novas classes para organizar os textos e os balõezinhos (badges) */
+        .item-details { 
             flex-grow: 1; 
             margin-right: 10px; 
-            font-weight: 600; /* Deixei o texto um pouquinho mais gordinho pra destacar o número */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .item-name {
+            font-weight: 600;
+        }
+
+        .item-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 6px;
+        }
+
+        .badge {
+            font-size: 0.8rem;
+            background-color: var(--sour-bg);
+            border: 1px solid var(--border-color);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: normal;
+        }
+
+        .badge-valor {
+            background-color: #e2f0cb; /* Um verdinho claro pro dinheiro */
         }
 
         button {
@@ -140,7 +166,9 @@
         <div class="status" id="statusText">Carregando desejos das nuvens... ☁️</div>
 
         <div class="admin-controls" id="adminControls">
-            <input type="text" id="newItemInput" placeholder="O que vamos adicionar?">
+            <input type="text" id="newItemName" placeholder="O que vamos adicionar? *">
+            <input type="text" id="newItemValor" placeholder="Valor (Ex: R$ 150) - Opcional">
+            <input type="text" id="newItemObs" placeholder="Obs (marca, cor, tamanho) - Opcional">
             <button class="btn-add" onclick="addItem()">Adicionar Item</button>
         </div>
 
@@ -170,7 +198,15 @@
                 const response = await fetch(url + '/latest', { headers: headers });
                 const data = await response.json();
                 
-                items = data.record.itens || [];
+                let loadedItems = data.record.itens || [];
+                
+                // MÁGICA: Converte os itens antigos (que eram só texto) para o formato novo com campos opcionais
+                items = loadedItems.map(item => {
+                    if (typeof item === 'string') {
+                        return { nome: item, valor: "", obs: "" };
+                    }
+                    return item;
+                });
                 
                 document.getElementById('statusText').textContent = "Lista carregada! 💜";
                 document.getElementById('editToggleBtn').style.display = "block";
@@ -202,14 +238,42 @@
             const listElement = document.getElementById('wishlist');
             listElement.innerHTML = ''; 
 
-            items.forEach((item, index) => {
+            items.forEach((itemObj, index) => {
                 const li = document.createElement('li');
-                const spanText = document.createElement('span');
-                spanText.className = 'item-text';
                 
-                // A MÁGICA ACONTECE AQUI: Adiciona o número (index + 1) antes do texto
-                spanText.textContent = `${index + 1}. ${item}`;
+                // Caixinha que vai segurar o nome e as tags
+                const detailsDiv = document.createElement('div');
+                detailsDiv.className = 'item-details';
 
+                // O nome do item
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'item-name';
+                nameSpan.textContent = `${index + 1}. ${itemObj.nome}`;
+                detailsDiv.appendChild(nameSpan);
+
+                // Se tiver valor ou obs, cria a área dos balõezinhos (badges)
+                if (itemObj.valor || itemObj.obs) {
+                    const metaDiv = document.createElement('div');
+                    metaDiv.className = 'item-meta';
+
+                    if (itemObj.valor) {
+                        const valorSpan = document.createElement('span');
+                        valorSpan.className = 'badge badge-valor';
+                        valorSpan.textContent = `💸 ${itemObj.valor}`;
+                        metaDiv.appendChild(valorSpan);
+                    }
+
+                    if (itemObj.obs) {
+                        const obsSpan = document.createElement('span');
+                        obsSpan.className = 'badge';
+                        obsSpan.textContent = `📌 ${itemObj.obs}`;
+                        metaDiv.appendChild(obsSpan);
+                    }
+
+                    detailsDiv.appendChild(metaDiv);
+                }
+
+                // Botões de ação
                 const actionDiv = document.createElement('div');
                 actionDiv.className = `action-buttons ${isEditMode ? 'show-flex' : ''}`;
 
@@ -233,7 +297,9 @@
                 btnDel.onclick = () => deleteItem(index);
 
                 actionDiv.append(btnUp, btnDown, btnEdit, btnDel);
-                li.append(spanText, actionDiv);
+                
+                // Junta tudo no LI
+                li.append(detailsDiv, actionDiv);
                 listElement.appendChild(li);
             });
         }
@@ -260,18 +326,35 @@
 
         // Ações da Lista
         async function addItem() {
-            const input = document.getElementById('newItemInput');
-            const novoItem = input.value.trim();
-            if (novoItem) {
-                items.push(novoItem);
-                input.value = ''; 
+            const inputName = document.getElementById('newItemName');
+            const inputValor = document.getElementById('newItemValor');
+            const inputObs = document.getElementById('newItemObs');
+
+            const novoNome = inputName.value.trim();
+            const novoValor = inputValor.value.trim();
+            const novaObs = inputObs.value.trim();
+
+            if (novoNome) { // Só adiciona se tiver o nome (valor e obs são opcionais)
+                items.push({
+                    nome: novoNome,
+                    valor: novoValor,
+                    obs: novaObs
+                });
+                
+                // Limpa os campos
+                inputName.value = ''; 
+                inputValor.value = ''; 
+                inputObs.value = ''; 
+                
                 renderList();
                 await salvarNaNuvem();
+            } else {
+                alert("O nome do item é obrigatório!");
             }
         }
 
         async function deleteItem(index) {
-            if (confirm(`Tem certeza que quer apagar o item ${index + 1}?`)) {
+            if (confirm(`Tem certeza que quer apagar "${items[index].nome}"?`)) {
                 items.splice(index, 1);
                 renderList();
                 await salvarNaNuvem();
@@ -279,12 +362,28 @@
         }
 
         async function editItem(index) {
-            // Mostra o item original sem o número para a pessoa editar mais fácil
-            const novoTexto = prompt("Altere o item:", items[index]);
-            if (novoTexto !== null && novoTexto.trim() !== "") {
-                items[index] = novoTexto.trim();
+            const atual = items[index];
+
+            // Vai pedir as 3 informações uma por uma, se a pessoa cancelar (null), ele não muda
+            const novoNome = prompt("Nome do item:", atual.nome);
+            if (novoNome === null) return; 
+
+            const novoValor = prompt("Valor (deixe vazio se não quiser):", atual.valor || "");
+            if (novoValor === null) return;
+
+            const novaObs = prompt("Obs - cor, tamanho, etc (deixe vazio se não quiser):", atual.obs || "");
+            if (novaObs === null) return;
+
+            if (novoNome.trim() !== "") {
+                items[index] = {
+                    nome: novoNome.trim(),
+                    valor: novoValor.trim(),
+                    obs: novaObs.trim()
+                };
                 renderList();
                 await salvarNaNuvem();
+            } else {
+                alert("O item precisa ter pelo menos um nome!");
             }
         }
 
